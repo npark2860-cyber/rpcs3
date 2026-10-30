@@ -64,7 +64,8 @@ jobs:
         run: |
           set -ex
           git -c core.autocrlf=false clone --depth 1 --branch "$LLVM_TAG" https://github.com/llvm/llvm-project.git ../llvm-project
-          git -C ../llvm-project apply "$PWD/.ci/snapryu/ghc-emergency-spill.patch"
+          tr -d '\r' < .ci/snapryu/ghc-emergency-spill.patch > ../ghc.patch
+          git -C ../llvm-project apply "$(cd .. && pwd)/ghc.patch"
           PREFIX=$(cygpath -u "$LLVM_PREFIX")
           cmake -S ../llvm-project/llvm -B ../llvm-build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
