@@ -666,7 +666,7 @@ std::string jit_compiler::triple2()
 #if defined(_WIN32) && defined(ARCH_X64)
 	return llvm::Triple::normalize("x86_64-unknown-linux-gnu");
 #elif defined(_WIN32) && defined(ARCH_ARM64)
-	return llvm::Triple::normalize("aarch64-unknown-linux-gnu");
+	return llvm::Triple::normalize("aarch64-unknown-linux-android"); // Set environment to android to reserve x18 (Windows TEB)
 #elif defined(__APPLE__) && defined(ARCH_X64)
 	return llvm::Triple::normalize("x86_64-unknown-linux-gnu");
 #elif (defined(__ANDROID__) || defined(__APPLE__)) && defined(ARCH_ARM64)
