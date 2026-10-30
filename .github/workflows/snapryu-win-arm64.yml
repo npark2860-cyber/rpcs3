@@ -63,7 +63,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -ex
-          git clone --depth 1 --branch "$LLVM_TAG" https://github.com/llvm/llvm-project.git ../llvm-project
+          git -c core.autocrlf=false clone --depth 1 --branch "$LLVM_TAG" https://github.com/llvm/llvm-project.git ../llvm-project
           git -C ../llvm-project apply "$PWD/.ci/snapryu/ghc-emergency-spill.patch"
           PREFIX=$(cygpath -u "$LLVM_PREFIX")
           cmake -S ../llvm-project/llvm -B ../llvm-build -G Ninja \
