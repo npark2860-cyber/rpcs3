@@ -1,0 +1,103 @@
+name: SnapRYU Windows ARM64 (patched LLVM)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'snapryu-*' ]
+
+jobs:
+  build:
+    runs-on: windows-11-arm
+    timeout-minutes: 360
+    env:
+      LLVM_TAG: llvmorg-23.1.4
+      LLVM_PREFIX: 'C:\llvm-ghc'
+      RELEASE_MESSAGE: ../GitHubReleaseMessage.txt
+      BUILD_REPOSITORY_NAME: ${{ github.repository }}
+      BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
+      BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ github.workspace }}/artifacts/
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+
+      - name: Setup msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: clangarm64
+          update: true
+          cache: true
+          install: |
+            mingw-w64-clang-aarch64-clang
+            mingw-w64-clang-aarch64-cmake
+            mingw-w64-clang-aarch64-lld
+            mingw-w64-clang-aarch64-ninja
+            mingw-w64-clang-aarch64-llvm
+            mingw-w64-clang-aarch64-ffmpeg
+            mingw-w64-clang-aarch64-iconv
+            mingw-w64-clang-aarch64-vulkan
+            mingw-w64-clang-aarch64-vulkan-headers
+            mingw-w64-clang-aarch64-vulkan-loader
+            mingw-w64-clang-aarch64-gtest
+            mingw-w64-clang-aarch64-qt6-base
+            mingw-w64-clang-aarch64-qt6-declarative
+            mingw-w64-clang-aarch64-qt6-multimedia
+            mingw-w64-clang-aarch64-qt6-svg
+            mingw-w64-clang-aarch64-qt6-tools
+            mingw-w64-clang-aarch64-qt6-translations
+            base-devel
+            curl
+            git
+            p7zip
+
+      - name: Restore patched LLVM
+        id: llvm-cache
+        uses: actions/cache@main
+        with:
+          path: C:\llvm-ghc
+          key: llvm-ghc-${{ env.LLVM_TAG }}-${{ hashFiles('.ci/snapryu/ghc-emergency-spill.patch') }}
+
+      - name: Build patched LLVM
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: |
+          set -ex
+          git clone --depth 1 --branch "$LLVM_TAG" https://github.com/llvm/llvm-project.git ../llvm-project
+          git -C ../llvm-project apply "$PWD/.ci/snapryu/ghc-emergency-spill.patch"
+          PREFIX=$(cygpath -u "$LLVM_PREFIX")
+          cmake -S ../llvm-project/llvm -B ../llvm-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_USE_LINKER=lld \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DLLVM_TARGETS_TO_BUILD=AArch64 \
+            -DLLVM_ENABLE_PROJECTS= \
+            -DLLVM_BUILD_TOOLS=OFF \
+            -DLLVM_INCLUDE_TOOLS=ON \
+            -DLLVM_INCLUDE_TESTS=OFF \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_DOCS=OFF \
+            -DLLVM_ENABLE_ZSTD=OFF \
+            -DLLVM_ENABLE_LIBXML2=OFF \
+            -DLLVM_ENABLE_WARNINGS=OFF
+          cmake --build ../llvm-build
+          cmake --install ../llvm-build
+
+      - name: Build RPCS3
+        shell: msys2 {0}
+        run: |
+          set -ex
+          .ci/setup-windows-ci-vars.sh aarch64 clang
+          PREFIX=$(cygpath -u "$LLVM_PREFIX")
+          sed -i "s#-DLLVM_DIR=/\"\${MSYS2}\"/lib/cmake/llvm#-DLLVM_DIR=$PREFIX/lib/cmake/llvm#" .ci/build-windows-clang.sh
+          grep -n "LLVM_DIR" .ci/build-windows-clang.sh
+          .ci/build-windows-clang.sh aarch64 clangarm64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@main
+        with:
+          name: RPCS3 Windows ARM64 (patched LLVM)
+          path: ${{ env.BUILD_ARTIFACTSTAGINGDIRECTORY }}
+          compression-level: 0
